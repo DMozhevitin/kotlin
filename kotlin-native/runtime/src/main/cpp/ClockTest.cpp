@@ -244,7 +244,6 @@ TEST(ClockInternalTest, WaitUntilViaFor_Void_ClockJumpTimeout) {
     });
 }
 
-
 TEST(ClockInternalTest, WaitUntilViaFor_Void_NonconformantWaitTimeout) {
     using TimePoint = std::chrono::time_point<test_support::manual_clock>;
     testing::StrictMock<testing::MockFunction<TimePoint()>> nowF;
@@ -1108,12 +1107,12 @@ TYPED_TEST(ClockTest, SharedFutureWaitFor_Types) {
                   decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::nanoseconds>()))>);
     static_assert(std::is_same_v<
                   std::future_status,
-                  decltype(
-                          TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::microseconds>()))>);
+                  decltype(TypeParam::wait_for(
+                          std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::microseconds>()))>);
     static_assert(std::is_same_v<
                   std::future_status,
-                  decltype(
-                          TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::milliseconds>()))>);
+                  decltype(TypeParam::wait_for(
+                          std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::milliseconds>()))>);
     static_assert(std::is_same_v<
                   std::future_status,
                   decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::seconds>()))>);

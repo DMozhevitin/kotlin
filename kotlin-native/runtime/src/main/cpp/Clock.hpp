@@ -58,7 +58,6 @@ void waitUntilViaFor(
 template <typename Clock>
 class ClockWaitImpl {
 public:
-
     template <typename Rep, typename Period>
     static void sleep_for(std::chrono::duration<Rep, Period> interval) {
         // Not using this_thread::sleep_for, because it may mishandle "infinite" intervals. Use saturating arithmetics to address this.
@@ -231,7 +230,8 @@ private:
     template <typename Rep, typename Period>
     static void sleep_for_impl(std::chrono::duration<Rep, Period> interval) {
         time_point before = now();
-        while (!now_.compare_exchange_weak(before, before + interval)) {}
+        while (!now_.compare_exchange_weak(before, before + interval)) {
+        }
     }
 
     static std::atomic<time_point> now_;

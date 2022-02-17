@@ -81,3 +81,24 @@ TEST(RepeatedTimerTest, InfiniteInterval) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_THAT(counter.load(), 0);
 }
+
+TEST(RepeatedTimerTest, Restart) {
+    std::atomic<int> counter = 0;
+    RepeatedTimer timer(std::chrono::minutes(10), [&counter]() {
+        ++counter;
+        return std::chrono::minutes(10);
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    EXPECT_THAT(counter.load(), 0);
+
+    // Instead of starting after 10 minutes, start after 20ms since the timer creation.
+    timer.restart(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    EXPECT_THAT(counter.load(), 1);
+
+    // TODO: Restarting the restart.
+
+    // Function returned starting time of 10 minutes since previous run, so no triggerings anymore.
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    EXPECT_THAT(counter.load(), 1);
+}

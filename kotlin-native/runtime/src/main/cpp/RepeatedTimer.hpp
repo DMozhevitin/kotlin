@@ -7,7 +7,6 @@
 
 #ifndef KONAN_NO_THREADS
 
-#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <string_view>
@@ -24,8 +23,7 @@ class RepeatedTimer : private Pinned {
 public:
     template <typename Rep, typename Period, typename F>
     RepeatedTimer(std::string_view name, std::chrono::duration<Rep, Period> interval, F&& f) noexcept :
-        thread_(ScopedThread::attributes().name(name), &RepeatedTimer::Run<Rep, Period, F>, this, std::move(interval), std::forward<F>(f)) {
-    }
+        interval_(interval), thread_(ScopedThread::attributes().name(name), &RepeatedTimer::Run<F>, this, std::forward<F>(f)) {}
 
     template <typename Rep, typename Period, typename F>
     RepeatedTimer(std::chrono::duration<Rep, Period> interval, F&& f) noexcept :
@@ -39,25 +37,34 @@ public:
         wait_.notify_all();
     }
 
-private:
-    template <typename Rep, typename Period, typename F>
-    void Run(std::chrono::duration<Rep, Period> interval, F f) noexcept {
-        while (true) {
+    template <typename Rep, typename Period>
+    void restart(std::chrono::duration<Rep, Period> interval) noexcept {
+        {
             std::unique_lock lock(mutex_);
-            if (Clock::wait_for(wait_, lock, interval, [this]() noexcept { return !run_; })) {
-                RuntimeAssert(!run_, "Can only happen once run_ is set to false");
-                return;
+            interval_ = interval;
+        }
+        wait_.notify_all();
+    }
+
+private:
+    template <typename F>
+    void Run(F&& f) noexcept {
+        std::unique_lock lock(mutex_);
+        while (run_) {
+            auto interval = interval_;
+            if (Clock::wait_for(wait_, lock, interval, [this, interval]() noexcept { return !run_ || interval != interval_; })) {
+                continue;
             }
-            RuntimeAssert(run_, "Can only happen if we timed out on waiting and run_ is still true");
-            auto newInterval = f();
+            auto newInterval = std::invoke(std::forward<F>(f));
             // The next waiting will use the new interval.
-            interval = std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(newInterval);
+            interval_ = newInterval;
         }
     }
 
     std::mutex mutex_;
     std::condition_variable wait_;
     bool run_ = true;
+    typename Clock::duration interval_;
     ScopedThread thread_;
 };
 

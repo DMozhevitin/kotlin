@@ -16,7 +16,6 @@ TEST(RepeatedTimerTest, WillNotExecuteImmediately) {
     std::atomic<int> counter = 0;
     RepeatedTimer timer(std::chrono::minutes(10), [&counter]() {
         ++counter;
-        return std::chrono::minutes(10);
     });
     // The function is not executed immediately.
     EXPECT_THAT(counter.load(), 0);
@@ -26,7 +25,6 @@ TEST(RepeatedTimerTest, WillRun) {
     std::atomic<int> counter = 0;
     RepeatedTimer timer(std::chrono::milliseconds(10), [&counter]() {
         ++counter;
-        return std::chrono::milliseconds(10);
     });
     // Wait until the counter increases at least twice.
     while (counter < 2) {
@@ -37,11 +35,10 @@ TEST(RepeatedTimerTest, WillRun) {
 TEST(RepeatedTimerTest, WillStopInDestructor) {
     std::atomic<int> counter = 0;
     {
-        RepeatedTimer timer(std::chrono::milliseconds(1), [&counter]() {
+        RepeatedTimer timer(std::chrono::milliseconds(30), [&counter]() {
             // This lambda will only get executed once.
             EXPECT_THAT(counter.load(), 0);
             ++counter;
-            return std::chrono::minutes(10);
         });
         // Wait until the counter increases once.
         while (counter < 1) {
@@ -52,31 +49,11 @@ TEST(RepeatedTimerTest, WillStopInDestructor) {
     EXPECT_THAT(counter.load(), 1);
 }
 
-TEST(RepeatedTimerTest, AdjustInterval) {
-    std::atomic<int> counter = 0;
-    RepeatedTimer timer(std::chrono::milliseconds(1), [&counter]() {
-        ++counter;
-        if (counter < 2) {
-            return std::chrono::milliseconds(1);
-        } else {
-            return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::minutes(10));
-        }
-    });
-    // Wait until counter grows to 2, when the waiting time changes to 10 minutes.
-    while (counter < 2) {
-    }
-    EXPECT_THAT(counter.load(), 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    // After we've slept for 10ms, we still haven't executed the function another time.
-    EXPECT_THAT(counter.load(), 2);
-}
-
 TEST(RepeatedTimerTest, InfiniteInterval) {
     constexpr auto infinite = std::chrono::milliseconds::max();
     std::atomic<int> counter = 0;
-    RepeatedTimer timer(infinite, [&counter, infinite]() {
+    RepeatedTimer timer(infinite, [&counter]() {
         ++counter;
-        return infinite;
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_THAT(counter.load(), 0);
@@ -86,19 +63,55 @@ TEST(RepeatedTimerTest, Restart) {
     std::atomic<int> counter = 0;
     RepeatedTimer timer(std::chrono::minutes(10), [&counter]() {
         ++counter;
-        return std::chrono::minutes(10);
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     EXPECT_THAT(counter.load(), 0);
 
-    // Instead of starting after 10 minutes, start after 20ms since the timer creation.
+    // Instead of starting after 10 minutes, start after 20ms since `restart` call.
     timer.restart(std::chrono::milliseconds(20));
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
     EXPECT_THAT(counter.load(), 1);
 
-    // TODO: Restarting the restart.
+    // `restart` set the new interval, so waiting another 20ms gives another counter bump.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_THAT(counter.load(), 2);
+}
 
-    // Function returned starting time of 10 minutes since previous run, so no triggerings anymore.
+
+TEST(RepeatedTimerTest, RestartAfterRestart) {
+    std::atomic<int> counter = 0;
+    RepeatedTimer timer(std::chrono::minutes(10), [&counter]() {
+        ++counter;
+    });
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    EXPECT_THAT(counter.load(), 0);
+
+    // Instead of starting after 10 minutes, start after 20ms since `restart` call.
+    timer.restart(std::chrono::milliseconds(100));
+    timer.restart(std::chrono::milliseconds(20));
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
     EXPECT_THAT(counter.load(), 1);
+
+    // `restart` set the new interval, so waiting another 20ms gives another counter bump.
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_THAT(counter.load(), 2);
+}
+
+TEST(RepeatedTimerTest, RestartFromTask) {
+    std::atomic<int> counter = 0;
+    RepeatedTimer<steady_clock>* timerPtr = nullptr;
+    RepeatedTimer timer(std::chrono::milliseconds(1), [&timerPtr, &counter]() {
+        ++counter;
+        if (counter == 2) {
+            timerPtr->restart(std::chrono::minutes(10));
+        }
+    });
+    timerPtr = &timer;
+    // Wait until counter grows to 2, when the waiting time changes to 10 minutes.
+    while (counter < 2) {
+    }
+    EXPECT_THAT(counter.load(), 2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // After we've slept for 10ms, we still haven't executed the function another time.
+    EXPECT_THAT(counter.load(), 2);
 }

@@ -55,9 +55,10 @@ private:
             if (Clock::wait_for(wait_, lock, interval, [this, interval]() noexcept { return !run_ || interval != interval_; })) {
                 continue;
             }
-            auto newInterval = std::invoke(std::forward<F>(f));
-            // The next waiting will use the new interval.
-            interval_ = newInterval;
+            // The function must be executed in the unlocked environment.
+            lock.unlock();
+            std::invoke(std::forward<F>(f));
+            lock.lock();
         }
     }
 

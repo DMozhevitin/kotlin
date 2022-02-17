@@ -106,11 +106,10 @@ public:
         heapGrowthController_(config),
         regularIntervalPacer_(config, currentTimeProvider),
         scheduleGC_(std::move(scheduleGC)),
-        timer_("GC Timer thread", config_.regularGcInterval(), [this]() {
+        timer_("GC Timer thread", config_.regularGcInterval(), [this] {
             if (regularIntervalPacer_.NeedsGC()) {
                 scheduleGC_();
             }
-            return config_.regularGcInterval();
         }) {}
 
     void UpdateFromThreadData(gc::GCSchedulerThreadData& threadData) noexcept override {
@@ -123,6 +122,7 @@ public:
     void OnPerformFullGC() noexcept override {
         heapGrowthController_.OnPerformFullGC();
         regularIntervalPacer_.OnPerformFullGC();
+        timer_.restart(config_.regularGcInterval());
     }
 
     void UpdateAliveSetBytes(size_t bytes) noexcept override { heapGrowthController_.UpdateAliveSetBytes(bytes); }

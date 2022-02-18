@@ -220,6 +220,7 @@ private:
 namespace test_support {
 
 // Clock that is manually advanced (cannot go backwards). For testing purposes.
+// TODO: Should be reset at the start of each test.
 class manual_clock : public internal::ClockWaitImpl<manual_clock> {
 public:
     using duration = nanoseconds;

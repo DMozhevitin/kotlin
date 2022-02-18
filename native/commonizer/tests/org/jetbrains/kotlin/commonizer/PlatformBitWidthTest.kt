@@ -5,20 +5,19 @@
 
 package org.jetbrains.kotlin.commonizer
 
-import org.jetbrains.kotlin.commonizer.mergedtree.PlatformWidth
+import org.jetbrains.kotlin.commonizer.mergedtree.PlatformIntWidth
 import org.jetbrains.kotlin.commonizer.mergedtree.PlatformWidthIndex
-import org.jetbrains.kotlin.commonizer.mergedtree.PlatformWidthIndexImpl
 import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.junit.Test
 import kotlin.test.assertEquals
 
 class PlatformBitWidthTest {
-    private fun createPlatformBitWidthIndex(): PlatformWidthIndex = PlatformWidthIndexImpl
+    private fun createPlatformBitWidthIndex(): PlatformWidthIndex = PlatformWidthIndex
 
     @Test
     fun `test leaf int`() {
         assertEquals(
-            PlatformWidth.INT,
+            PlatformIntWidth.INT,
             createPlatformBitWidthIndex().platformWidthOf(CommonizerTarget(KonanTarget.IOS_ARM32))
         )
     }
@@ -26,7 +25,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test leaf long`() {
         assertEquals(
-            PlatformWidth.LONG,
+            PlatformIntWidth.LONG,
             createPlatformBitWidthIndex().platformWidthOf(CommonizerTarget(KonanTarget.MACOS_X64))
         )
     }
@@ -34,7 +33,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test shared int`() {
         assertEquals(
-            PlatformWidth.INT,
+            PlatformIntWidth.INT,
             createPlatformBitWidthIndex().platformWidthOf(CommonizerTarget(KonanTarget.IOS_ARM32, KonanTarget.LINUX_MIPS32))
         )
     }
@@ -42,7 +41,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test shared long`() {
         assertEquals(
-            PlatformWidth.LONG,
+            PlatformIntWidth.LONG,
             createPlatformBitWidthIndex().platformWidthOf(CommonizerTarget(KonanTarget.MACOS_X64, KonanTarget.LINUX_X64))
         )
     }
@@ -50,7 +49,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test int and long`() {
         assertEquals(
-            PlatformWidth.MIXED,
+            PlatformIntWidth.MIXED,
             createPlatformBitWidthIndex().platformWidthOf(CommonizerTarget(KonanTarget.IOS_ARM32, KonanTarget.MACOS_X64))
         )
     }
@@ -58,7 +57,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test int and unknown`() {
         assertEquals(
-            PlatformWidth.UNKNOWN,
+            null,
             createPlatformBitWidthIndex().platformWidthOf(
                 CommonizerTarget(
                     LeafCommonizerTarget(KonanTarget.IOS_ARM32),
@@ -71,7 +70,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test long and unknown`() {
         assertEquals(
-            PlatformWidth.UNKNOWN,
+            null,
             createPlatformBitWidthIndex().platformWidthOf(
                 CommonizerTarget(
                     LeafCommonizerTarget(KonanTarget.MACOS_X64),
@@ -84,7 +83,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test the good, the bad and the ugly`() {
         assertEquals(
-            PlatformWidth.UNKNOWN,
+            null,
             createPlatformBitWidthIndex().platformWidthOf(
                 CommonizerTarget(
                     LeafCommonizerTarget(KonanTarget.MACOS_X64),
@@ -98,7 +97,7 @@ class PlatformBitWidthTest {
     @Test
     fun `test watchosArm64 is considered int`() {
         assertEquals(
-            PlatformWidth.INT,
+            PlatformIntWidth.INT,
             createPlatformBitWidthIndex().platformWidthOf(CommonizerTarget(KonanTarget.WATCHOS_ARM64))
         )
     }

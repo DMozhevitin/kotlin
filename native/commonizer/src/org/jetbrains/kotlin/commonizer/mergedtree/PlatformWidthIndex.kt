@@ -11,50 +11,46 @@ import org.jetbrains.kotlin.commonizer.SharedCommonizerTarget
 import org.jetbrains.kotlin.commonizer.allLeaves
 import org.jetbrains.kotlin.commonizer.utils.singleDistinctValueOrNull
 import org.jetbrains.kotlin.konan.target.KonanTarget
+import org.jetbrains.kotlin.utils.addToStdlib.ifTrue
 
-enum class PlatformWidth(val isKnown: Boolean) {
-    INT(true), LONG(true), MIXED(true), UNKNOWN(false)
+enum class PlatformIntWidth {
+    INT, LONG, MIXED
 }
 
-interface PlatformWidthIndex {
-    fun platformWidthOf(target: CommonizerTarget): PlatformWidth
-}
-
-object PlatformWidthIndexImpl : PlatformWidthIndex {
+object PlatformWidthIndex {
     private val widthByLeafTargets = mapOf(
-        LeafCommonizerTarget(KonanTarget.IOS_ARM32) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.IOS_ARM64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.IOS_X64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.IOS_SIMULATOR_ARM64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.WATCHOS_ARM32) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.WATCHOS_ARM64) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.WATCHOS_X86) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.WATCHOS_X64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.WATCHOS_SIMULATOR_ARM64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.TVOS_ARM64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.TVOS_X64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.TVOS_SIMULATOR_ARM64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.LINUX_X64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.MINGW_X86) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.MINGW_X64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.MACOS_X64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.MACOS_ARM64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.LINUX_ARM64) to PlatformWidth.LONG,
-        LeafCommonizerTarget(KonanTarget.LINUX_ARM32_HFP) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.LINUX_MIPS32) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.LINUX_MIPSEL32) to PlatformWidth.INT,
-        LeafCommonizerTarget(KonanTarget.WASM32) to PlatformWidth.INT,
+        LeafCommonizerTarget(KonanTarget.IOS_ARM32) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.IOS_ARM64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.IOS_X64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.IOS_SIMULATOR_ARM64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.WATCHOS_ARM32) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.WATCHOS_ARM64) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.WATCHOS_X86) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.WATCHOS_X64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.WATCHOS_SIMULATOR_ARM64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.TVOS_ARM64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.TVOS_X64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.TVOS_SIMULATOR_ARM64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.LINUX_X64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.MINGW_X86) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.MINGW_X64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.MACOS_X64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.MACOS_ARM64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.LINUX_ARM64) to PlatformIntWidth.LONG,
+        LeafCommonizerTarget(KonanTarget.LINUX_ARM32_HFP) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.LINUX_MIPS32) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.LINUX_MIPSEL32) to PlatformIntWidth.INT,
+        LeafCommonizerTarget(KonanTarget.WASM32) to PlatformIntWidth.INT,
     )
 
-    override fun platformWidthOf(target: CommonizerTarget): PlatformWidth {
+    fun platformWidthOf(target: CommonizerTarget): PlatformIntWidth? {
         return when (target) {
             is LeafCommonizerTarget -> widthByLeafTargets[target]
-                ?: PlatformWidth.UNKNOWN
             is SharedCommonizerTarget -> target.allLeaves().toList().let { leafTargets ->
-                leafTargets.singleDistinctValueOrNull { platformWidthOf(it) }
-                    ?: if (leafTargets.all { platformWidthOf(it).isKnown })
-                        PlatformWidth.MIXED
-                    else PlatformWidth.UNKNOWN
+                val sameForAllLeaves = leafTargets.singleDistinctValueOrNull { platformWidthOf(it) }
+                if (sameForAllLeaves != null) return@let sameForAllLeaves
+
+                leafTargets.all { platformWidthOf(it) != null }.ifTrue { PlatformIntWidth.MIXED }
             }
         }
     }

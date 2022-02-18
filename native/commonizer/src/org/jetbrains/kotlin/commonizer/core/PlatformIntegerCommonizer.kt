@@ -7,9 +7,8 @@ package org.jetbrains.kotlin.commonizer.core
 
 import org.jetbrains.kotlin.commonizer.cir.*
 import org.jetbrains.kotlin.commonizer.mergedtree.CirKnownClassifiers
-import org.jetbrains.kotlin.commonizer.mergedtree.PlatformWidth
+import org.jetbrains.kotlin.commonizer.mergedtree.PlatformIntWidth
 import org.jetbrains.kotlin.commonizer.mergedtree.PlatformWidthIndex
-import org.jetbrains.kotlin.commonizer.mergedtree.PlatformWidthIndexImpl
 import org.jetbrains.kotlin.descriptors.konan.*
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.utils.SmartList
@@ -21,9 +20,6 @@ class PlatformIntegerCommonizer(
     constructor(typeCommonizer: TypeCommonizer, classifiers: CirKnownClassifiers)
             : this(TypeArgumentListCommonizer(typeCommonizer), classifiers)
 
-    private val platformWidthIndex: PlatformWidthIndex
-        get() = PlatformWidthIndexImpl
-
     override fun invoke(values: List<CirClassOrTypeAliasType>): CirClassOrTypeAliasType? {
         val typesToCommonizeWithTargets = values.zip(classifiers.classifierIndices.targets)
 
@@ -34,7 +30,7 @@ class PlatformIntegerCommonizer(
 
             // bit width of types should match their platform width
             if (typesToCommonizeWithTargets.any { (type, target) ->
-                    platformTypeGroup[type.classifierId] != platformWidthIndex.platformWidthOf(target)
+                    platformTypeGroup[type.classifierId] != PlatformWidthIndex.platformWidthOf(target)
                 }) continue
 
             return commonizer(values)
@@ -68,67 +64,67 @@ class PlatformIntegerCommonizer(
 }
 
 private typealias PlatformTypeCommonizer = (List<CirClassOrTypeAliasType>) -> CirClassOrTypeAliasType?
-private typealias PlatformTypeGroup = Map<CirEntityId, PlatformWidth>
+private typealias PlatformTypeGroup = Map<CirEntityId, PlatformIntWidth>
 
 // commonizable groups
-private val commonizableSignedIntegerIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    KOTLIN_INT_ID.toCirEntityId() to PlatformWidth.INT,
-    KOTLIN_LONG_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_INT_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableSignedIntegerIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    KOTLIN_INT_ID.toCirEntityId() to PlatformIntWidth.INT,
+    KOTLIN_LONG_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_INT_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableUnsignedIntegerIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    KOTLIN_UINT_ID.toCirEntityId() to PlatformWidth.INT,
-    KOTLIN_ULONG_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_UINT_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableUnsignedIntegerIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    KOTLIN_UINT_ID.toCirEntityId() to PlatformIntWidth.INT,
+    KOTLIN_ULONG_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_UINT_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableSignedVarIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    INT_VAR_OF_ID.toCirEntityId() to PlatformWidth.INT,
-    LONG_VAR_OF_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_INT_VAR_OF_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableSignedVarIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    INT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.INT,
+    LONG_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_INT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableUnsignedVarIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    UINT_VAR_OF_ID.toCirEntityId() to PlatformWidth.INT,
-    ULONG_VAR_OF_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_UINT_VAR_OF_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableUnsignedVarIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    UINT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.INT,
+    ULONG_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_UINT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableSignedArrayIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    INT_ARRAY_ID.toCirEntityId() to PlatformWidth.INT,
-    LONG_ARRAY_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_INT_ARRAY_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableSignedArrayIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    INT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.INT,
+    LONG_ARRAY_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_INT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableUnsignedArrayIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    UINT_ARRAY_ID.toCirEntityId() to PlatformWidth.INT,
-    ULONG_ARRAY_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_UINT_ARRAY_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableUnsignedArrayIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    UINT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.INT,
+    ULONG_ARRAY_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_UINT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableSignedRangeIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    INT_RANGE_ID.toCirEntityId() to PlatformWidth.INT,
-    LONG_RANGE_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_INT_RANGE_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableSignedRangeIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    INT_RANGE_ID.toCirEntityId() to PlatformIntWidth.INT,
+    LONG_RANGE_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_INT_RANGE_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableUnsignedRangeIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    UINT_RANGE_ID.toCirEntityId() to PlatformWidth.INT,
-    ULONG_RANGE_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_UINT_RANGE_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableUnsignedRangeIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    UINT_RANGE_ID.toCirEntityId() to PlatformIntWidth.INT,
+    ULONG_RANGE_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_UINT_RANGE_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableSignedProgressionIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    INT_PROGRESSION_ID.toCirEntityId() to PlatformWidth.INT,
-    LONG_PROGRESSION_ID.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_INT_PROGRESSION_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableSignedProgressionIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    INT_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.INT,
+    LONG_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_INT_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
-private val commonizableUnsignedProgressionIds: Map<CirEntityId, PlatformWidth> = mapOf(
-    UINT_PROGRESSION.toCirEntityId() to PlatformWidth.INT,
-    ULONG_PROGRESSION.toCirEntityId() to PlatformWidth.LONG,
-    PLATFORM_UINT_PROGRESSION_ID.toCirEntityId() to PlatformWidth.MIXED,
+private val commonizableUnsignedProgressionIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
+    UINT_PROGRESSION.toCirEntityId() to PlatformIntWidth.INT,
+    ULONG_PROGRESSION.toCirEntityId() to PlatformIntWidth.LONG,
+    PLATFORM_UINT_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.MIXED,
 )
 
 private fun ClassId.toCirEntityId(): CirEntityId =

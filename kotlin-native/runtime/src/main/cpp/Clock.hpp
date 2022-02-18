@@ -252,13 +252,20 @@ public:
         return *it;
     }
 
+    // Should be done before the timer is used (in the beginning of the test, for example).
+    static void reset(time_point start = time_point::min()) noexcept {
+        std::unique_lock guard(pendingWaitsMutex_);
+        RuntimeAssert(pendingWaits_.empty(), "To reset, there must not be any pending waits");
+        now_ = start;
+    }
+
 private:
     friend class internal::ClockWaitImpl<manual_clock>;
 
     // Use non-saturating type here, because step may be fed into the standard library.
     static inline constexpr auto wait_step = std::chrono::microseconds(1);
 
-    class PendingWaitRegistration: private Pinned {
+    class PendingWaitRegistration : private Pinned {
     public:
         ~PendingWaitRegistration() noexcept {
             std::unique_lock guard(pendingWaitsMutex_);

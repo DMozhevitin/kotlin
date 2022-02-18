@@ -293,7 +293,10 @@ public:
 } // namespace
 
 template <typename T>
-class ClockTest : public testing::Test {};
+class ClockTest : public testing::Test {
+public:
+    ClockTest() noexcept { test_support::manual_clock::reset(); }
+};
 
 using ClockTestTypes = testing::Types<kotlin::steady_clock, kotlin::test_support::manual_clock>;
 TYPED_TEST_SUITE(ClockTest, ClockTestTypes, TypesNames);
@@ -1329,6 +1332,8 @@ TYPED_TEST(ClockTest, SharedFutureWaitUntil_InfiniteTimeout) {
 }
 
 TEST(ManualClockTest, SleepUntil) {
+    test_support::manual_clock::reset();
+
     auto before = test_support::manual_clock::now();
     test_support::manual_clock::sleep_until(before + seconds(2));
     EXPECT_THAT(test_support::manual_clock::now() - before, seconds(2));
@@ -1341,15 +1346,16 @@ TEST(ManualClockTest, SleepUntil) {
 }
 
 TEST(ManualClockTest, Pending) {
+    test_support::manual_clock::reset();
+
     // Nothing pending at start.
     EXPECT_THAT(test_support::manual_clock::pending(), std::nullopt);
     std::promise<int> promise;
     std::future<int> future = promise.get_future();
-    ScopedThread thread([&] {
-        test_support::manual_clock::wait_for(future, seconds(1));
-    });
+    ScopedThread thread([&] { test_support::manual_clock::wait_for(future, seconds(1)); });
     // Wait until pending from the thread appears.
-    while (!test_support::manual_clock::pending()) {}
+    while (!test_support::manual_clock::pending()) {
+    }
     EXPECT_THAT(*test_support::manual_clock::pending(), test_support::manual_clock::now() + seconds(1));
 
     // Unblocks the thread.
@@ -1361,6 +1367,8 @@ TEST(ManualClockTest, Pending) {
 }
 
 TEST(ManualClockTest, ConcurrentSleepUntil) {
+    test_support::manual_clock::reset();
+
     constexpr auto threadCount = kDefaultThreadCount;
     KStdVector<ScopedThread> threads;
     std::atomic<bool> run = false;
@@ -1369,12 +1377,14 @@ TEST(ManualClockTest, ConcurrentSleepUntil) {
         threads.emplace_back([&, i] {
             auto now = test_support::manual_clock::now();
             ++ready;
-            while (!run.load()) {}
+            while (!run.load()) {
+            }
             test_support::manual_clock::sleep_until(now + seconds(i));
         });
     }
     auto before = test_support::manual_clock::now();
-    while (ready.load() < threadCount) {}
+    while (ready.load() < threadCount) {
+    }
     run = true;
     threads.clear();
     auto after = test_support::manual_clock::now();
@@ -1382,6 +1392,8 @@ TEST(ManualClockTest, ConcurrentSleepUntil) {
 }
 
 TEST(ManualClockTest, ConcurrentWaits) {
+    test_support::manual_clock::reset();
+
     constexpr auto threadCount = kDefaultThreadCount;
     KStdVector<ScopedThread> threads;
     std::mutex mutex;
@@ -1397,7 +1409,8 @@ TEST(ManualClockTest, ConcurrentWaits) {
         threads.emplace_back([&, i] {
             auto now = test_support::manual_clock::now();
             ++ready;
-            while (!run.load()) {}
+            while (!run.load()) {
+            }
             switch (i % 4) {
                 case 0: {
                     std::unique_lock guard(mutex);
@@ -1417,7 +1430,8 @@ TEST(ManualClockTest, ConcurrentWaits) {
         });
     }
     auto before = test_support::manual_clock::now();
-    while (ready.load() < threadCount) {}
+    while (ready.load() < threadCount) {
+    }
     run = true;
 
     test_support::manual_clock::sleep_until(before + seconds(1));
@@ -1426,7 +1440,8 @@ TEST(ManualClockTest, ConcurrentWaits) {
     threads[1].join();
     threads[2].join();
     // Make sure at least one other thread is waiting.
-    while (!test_support::manual_clock::pending()) {}
+    while (!test_support::manual_clock::pending()) {
+    }
     auto pendingAfterSecond = *test_support::manual_clock::pending();
     EXPECT_THAT(pendingAfterSecond, testing::Ge(before + seconds(2)));
 

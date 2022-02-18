@@ -9,6 +9,7 @@ import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.jetbrains.kotlin.commonizer.*
 import org.jetbrains.kotlin.compilerRunner.konanHome
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.dsl.multiplatformExtension
 import org.jetbrains.kotlin.gradle.dsl.multiplatformExtensionOrNull
 import org.jetbrains.kotlin.gradle.internal.KOTLIN_MODULE_GROUP
@@ -48,7 +49,7 @@ internal fun Project.setupKotlinNativePlatformDependencies() {
     }
 
     if (isPlatformIntegerCommonizationEnabled) {
-        getRootNativeSourceSets(kotlin.sourceSets).forEach { sourceSet ->
+        kotlin.nativeRootSourceSets.forEach { sourceSet ->
             dependencies.add(
                 sourceSet.implementationConfigurationName,
                 "$KOTLIN_MODULE_GROUP:$PLATFORM_INTEGERS_SUPPORT_LIBRARY:${getKotlinPluginVersion()}"
@@ -63,6 +64,17 @@ internal fun Project.getNativeDistributionDependencies(target: CommonizerTarget)
         is SharedCommonizerTarget -> commonizeNativeDistributionTask?.get()?.getCommonizedPlatformLibrariesFor(target) ?: project.files()
     }
 }
+
+internal val KotlinMultiplatformExtension.nativeRootSourceSets: Collection<KotlinSourceSet>
+    get() {
+        val nativeSourceSets = sourceSets.filter { sourceSet -> project.getCommonizerTarget(sourceSet) != null }
+        return nativeSourceSets.filter { sourceSet ->
+            val allVisibleSourceSets = sourceSet.dependsOn + getVisibleSourceSetsFromAssociateCompilations(project, sourceSet)
+            allVisibleSourceSets.none { dependency ->
+                dependency in nativeSourceSets
+            }
+        }
+    }
 
 private fun Project.getOriginalPlatformLibrariesFor(target: LeafCommonizerTarget): FileCollection = project.filesProvider {
     konanDistribution.platformLibsDir.resolve(target.konanTarget.name).listLibraryFiles().toSet()
@@ -87,16 +99,6 @@ private fun Project.addDependencies(
             if (project.isIntransitiveMetadataConfigurationEnabled) sourceSet.intransitiveMetadataConfigurationName
             else sourceSet.implementationMetadataConfigurationName
         dependencies.add(metadataConfigurationName, libraries)
-    }
-}
-
-private fun Project.getRootNativeSourceSets(allSourceSets: Iterable<KotlinSourceSet>): Collection<KotlinSourceSet> {
-    val nativeSourceSets = allSourceSets.filter { sourceSet -> getCommonizerTarget(sourceSet) != null }
-    return nativeSourceSets.filter { sourceSet ->
-        val allVisibleSourceSets = sourceSet.dependsOn + getVisibleSourceSetsFromAssociateCompilations(project, sourceSet)
-        allVisibleSourceSets.none { dependee ->
-            dependee in nativeSourceSets
-        }
     }
 }
 

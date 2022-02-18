@@ -9,3 +9,9 @@ using namespace kotlin;
 
 // static
 std::atomic<test_support::manual_clock::time_point> test_support::manual_clock::now_ = test_support::manual_clock::time_point::min();
+
+// static
+std::mutex test_support::manual_clock::pendingWaitsMutex_;
+
+// static
+KStdOrderedMultiset<test_support::manual_clock::time_point> test_support::manual_clock::pendingWaits_;

@@ -8,9 +8,12 @@
 #include <condition_variable>
 #include <future>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 #include "Saturating.hpp"
+#include "Types.h"
+#include "Utils.hpp"
 
 namespace kotlin {
 
@@ -61,18 +64,12 @@ public:
     template <typename Rep, typename Period>
     static void sleep_for(std::chrono::duration<Rep, Period> interval) {
         // Not using this_thread::sleep_for, because it may mishandle "infinite" intervals. Use saturating arithmetics to address this.
-        return sleep_until(Clock::now() + interval);
+        return Clock::sleep_until(Clock::now() + interval);
     }
 
     template <typename Rep, typename Period>
     static void sleep_until(std::chrono::time_point<Clock, std::chrono::duration<Rep, Period>> until) {
-        return sleep_until(std::chrono::time_point<Clock, std::chrono::duration<saturating<Rep>, Period>>(until));
-    }
-
-    template <typename Rep, typename Period>
-    static void sleep_until(std::chrono::time_point<Clock, std::chrono::duration<saturating<Rep>, Period>> until) {
-        // Implement in terms of repeated this_thread::sleep_for of non-"infinite" intervals.
-        return internal::waitUntilViaFor(&Clock::now, Clock::wait_step, until, [&](auto interval) { Clock::sleep_for_impl(interval); });
+        return Clock::sleep_until(std::chrono::time_point<Clock, std::chrono::duration<saturating<Rep>, Period>>(until));
     }
 
     template <typename Rep, typename Period, typename F>
@@ -98,6 +95,7 @@ public:
             std::unique_lock<std::mutex>& lock,
             std::chrono::time_point<Clock, std::chrono::duration<saturating<Rep>, Period>> until,
             F&& f) {
+        [[maybe_unused]] auto pendingWait = Clock::addPendingWait(until);
         // Implement in terms of repeated cv.wait_for of non-"infinite" intervals.
         return internal::waitUntilViaFor(&Clock::now, Clock::wait_step, until, false, [&](auto interval) {
             return cv.wait_for(lock, interval, std::forward<F>(f));
@@ -123,6 +121,7 @@ public:
             Lock& lock,
             std::chrono::time_point<Clock, std::chrono::duration<saturating<Rep>, Period>> until,
             F&& f) {
+        [[maybe_unused]] auto pendingWait = Clock::addPendingWait(until);
         // Implement in terms of repeated cv.wait_for of non-"infinite" intervals.
         return internal::waitUntilViaFor(&Clock::now, Clock::wait_step, until, false, [&](auto interval) {
             return cv.wait_for(lock, interval, std::forward<F>(f));
@@ -144,6 +143,7 @@ public:
     template <typename T, typename Rep, typename Period>
     static std::future_status wait_until(
             const std::future<T>& future, std::chrono::time_point<Clock, std::chrono::duration<saturating<Rep>, Period>> until) {
+        [[maybe_unused]] auto pendingWait = Clock::addPendingWait(until);
         // Implement in terms of repeated future.wait_for of non-"infinite" intervals.
         return internal::waitUntilViaFor(&Clock::now, Clock::wait_step, until, std::future_status::timeout, [&](auto interval) {
             return future.wait_for(interval);
@@ -165,6 +165,7 @@ public:
     template <typename T, typename Rep, typename Period>
     static std::future_status wait_until(
             const std::shared_future<T>& future, std::chrono::time_point<Clock, std::chrono::duration<saturating<Rep>, Period>> until) {
+        [[maybe_unused]] auto pendingWait = Clock::addPendingWait(until);
         // Implement in terms of repeated future.wait_for of non-"infinite" intervals.
         return internal::waitUntilViaFor(&Clock::now, Clock::wait_step, until, std::future_status::timeout, [&](auto interval) {
             return future.wait_for(interval);
@@ -195,6 +196,14 @@ public:
         return time_point(time);
     }
 
+    using internal::ClockWaitImpl<steady_clock>::sleep_until;
+
+    template <typename Rep, typename Period>
+    static void sleep_until(std::chrono::time_point<steady_clock, std::chrono::duration<saturating<Rep>, Period>> until) {
+        // Implement in terms of repeated this_thread::sleep_for of non-"infinite" intervals.
+        return internal::waitUntilViaFor(&now, wait_step, until, [&](auto interval) { std::this_thread::sleep_for(interval); });
+    }
+
 private:
     friend class internal::ClockWaitImpl<steady_clock>;
 
@@ -202,14 +211,15 @@ private:
     static inline constexpr auto wait_step = std::chrono::hours(24);
 
     template <typename Rep, typename Period>
-    static void sleep_for_impl(std::chrono::duration<Rep, Period> interval) {
-        std::this_thread::sleep_for(interval);
+    static int addPendingWait(std::chrono::time_point<steady_clock, std::chrono::duration<saturating<Rep>, Period>> until) {
+        // No need to register here.
+        return 0;
     }
 };
 
 namespace test_support {
 
-// Clock that is manually advanced. For testing purposes.
+// Clock that is manually advanced (cannot go backwards). For testing purposes.
 class manual_clock : public internal::ClockWaitImpl<manual_clock> {
 public:
     using duration = nanoseconds;
@@ -217,9 +227,29 @@ public:
     using period = duration::period;
     using time_point = std::chrono::time_point<manual_clock>;
 
-    static constexpr bool is_steady = false;
+    // Steady because it cannot go backwards.
+    static constexpr bool is_steady = true;
 
     static time_point now() noexcept { return now_.load(); }
+
+    using internal::ClockWaitImpl<manual_clock>::sleep_until;
+
+    template <typename Rep, typename Period>
+    static void sleep_until(std::chrono::time_point<manual_clock, std::chrono::duration<saturating<Rep>, Period>> until) {
+        time_point before = now();
+        while (before < until) {
+            now_.compare_exchange_weak(before, until);
+        }
+    }
+
+    static std::optional<time_point> pending() noexcept {
+        std::unique_lock guard(pendingWaitsMutex_);
+        auto it = pendingWaits_.begin();
+        if (it == pendingWaits_.end()) {
+            return std::nullopt;
+        }
+        return *it;
+    }
 
 private:
     friend class internal::ClockWaitImpl<manual_clock>;
@@ -227,14 +257,32 @@ private:
     // Use non-saturating type here, because step may be fed into the standard library.
     static inline constexpr auto wait_step = std::chrono::microseconds(1);
 
-    template <typename Rep, typename Period>
-    static void sleep_for_impl(std::chrono::duration<Rep, Period> interval) {
-        time_point before = now();
-        while (!now_.compare_exchange_weak(before, before + interval)) {
+    class PendingWaitRegistration: private Pinned {
+    public:
+        ~PendingWaitRegistration() noexcept {
+            std::unique_lock guard(pendingWaitsMutex_);
+            pendingWaits_.erase(it_);
         }
+
+    private:
+        friend class manual_clock;
+
+        explicit PendingWaitRegistration(KStdOrderedMultiset<time_point>::iterator it) noexcept : it_(it) {}
+
+        KStdOrderedMultiset<time_point>::iterator it_;
+    };
+
+    template <typename Rep, typename Period>
+    static PendingWaitRegistration addPendingWait(
+            std::chrono::time_point<manual_clock, std::chrono::duration<saturating<Rep>, Period>> until) {
+        std::unique_lock guard(pendingWaitsMutex_);
+        auto it = pendingWaits_.insert(until);
+        return PendingWaitRegistration(it);
     }
 
     static std::atomic<time_point> now_;
+    static std::mutex pendingWaitsMutex_;
+    static KStdOrderedMultiset<time_point> pendingWaits_;
 };
 
 } // namespace test_support

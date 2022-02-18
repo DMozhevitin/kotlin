@@ -15,6 +15,7 @@
 #include "gtest/gtest.h"
 
 #include "ScopedThread.hpp"
+#include "TestSupport.hpp"
 
 using namespace kotlin;
 
@@ -1325,4 +1326,113 @@ TYPED_TEST(ClockTest, SharedFutureWaitUntil_InfiniteTimeout) {
     go = true;
     auto result = TypeParam::wait_until(future, TypeParam::time_point::max());
     EXPECT_THAT(result, std::future_status::ready);
+}
+
+TEST(ManualClockTest, SleepUntil) {
+    auto before = test_support::manual_clock::now();
+    test_support::manual_clock::sleep_until(before + seconds(2));
+    EXPECT_THAT(test_support::manual_clock::now() - before, seconds(2));
+    // Sleep until current time.
+    test_support::manual_clock::sleep_until(before + seconds(2));
+    EXPECT_THAT(test_support::manual_clock::now() - before, seconds(2));
+    // Sleep until moment in the past.
+    test_support::manual_clock::sleep_until(before);
+    EXPECT_THAT(test_support::manual_clock::now() - before, seconds(2));
+}
+
+TEST(ManualClockTest, Pending) {
+    // Nothing pending at start.
+    EXPECT_THAT(test_support::manual_clock::pending(), std::nullopt);
+    std::promise<int> promise;
+    std::future<int> future = promise.get_future();
+    ScopedThread thread([&] {
+        test_support::manual_clock::wait_for(future, seconds(1));
+    });
+    // Wait until pending from the thread appears.
+    while (!test_support::manual_clock::pending()) {}
+    EXPECT_THAT(*test_support::manual_clock::pending(), test_support::manual_clock::now() + seconds(1));
+
+    // Unblocks the thread.
+    test_support::manual_clock::sleep_for(seconds(1));
+    thread.join();
+
+    // Nothing pending anymore.
+    EXPECT_THAT(test_support::manual_clock::pending(), std::nullopt);
+}
+
+TEST(ManualClockTest, ConcurrentSleepUntil) {
+    constexpr auto threadCount = kDefaultThreadCount;
+    KStdVector<ScopedThread> threads;
+    std::atomic<bool> run = false;
+    std::atomic<int> ready = 0;
+    for (int i = 0; i < threadCount; ++i) {
+        threads.emplace_back([&, i] {
+            auto now = test_support::manual_clock::now();
+            ++ready;
+            while (!run.load()) {}
+            test_support::manual_clock::sleep_until(now + seconds(i));
+        });
+    }
+    auto before = test_support::manual_clock::now();
+    while (ready.load() < threadCount) {}
+    run = true;
+    threads.clear();
+    auto after = test_support::manual_clock::now();
+    EXPECT_THAT(after - before, seconds(threadCount - 1));
+}
+
+TEST(ManualClockTest, ConcurrentWaits) {
+    constexpr auto threadCount = kDefaultThreadCount;
+    KStdVector<ScopedThread> threads;
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::condition_variable_any cvAny;
+    std::promise<int> promise1;
+    std::promise<int> promise2;
+    std::future<int> future = promise1.get_future();
+    std::shared_future<int> shared_future = promise2.get_future().share();
+    std::atomic<bool> run = false;
+    std::atomic<int> ready = 0;
+    for (int i = 0; i < threadCount; ++i) {
+        threads.emplace_back([&, i] {
+            auto now = test_support::manual_clock::now();
+            ++ready;
+            while (!run.load()) {}
+            switch (i % 4) {
+                case 0: {
+                    std::unique_lock guard(mutex);
+                    test_support::manual_clock::wait_until(cv, guard, now + seconds(i / 3 + 1), [] { return false; });
+                }
+                case 1: {
+                    std::unique_lock guard(mutex);
+                    test_support::manual_clock::wait_until(cvAny, guard, now + seconds(i / 3 + 1), [] { return false; });
+                }
+                case 2: {
+                    test_support::manual_clock::wait_until(future, now + seconds(i / 3 + 1));
+                }
+                case 3: {
+                    test_support::manual_clock::wait_until(shared_future, now + seconds(i / 3 + 1));
+                }
+            }
+        });
+    }
+    auto before = test_support::manual_clock::now();
+    while (ready.load() < threadCount) {}
+    run = true;
+
+    test_support::manual_clock::sleep_until(before + seconds(1));
+    // Now the first 3 threads will be unblocked.
+    threads[0].join();
+    threads[1].join();
+    threads[2].join();
+    // Make sure at least one other thread is waiting.
+    while (!test_support::manual_clock::pending()) {}
+    auto pendingAfterSecond = *test_support::manual_clock::pending();
+    EXPECT_THAT(pendingAfterSecond, testing::Ge(before + seconds(2)));
+
+    // Unblock all the threads.
+    test_support::manual_clock::sleep_until(before + seconds((threadCount - 1) / 3 + 1));
+    threads.clear();
+    // All threads are gone, nothing can possibly be pending.
+    EXPECT_THAT(test_support::manual_clock::pending(), std::nullopt);
 }

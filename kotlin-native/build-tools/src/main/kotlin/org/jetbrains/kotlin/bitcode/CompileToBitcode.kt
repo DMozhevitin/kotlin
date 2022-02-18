@@ -134,7 +134,6 @@ abstract class CompileToBitcode @Inject constructor(
         get() {
             val commonFlags = listOfNotNull(
                     "-gdwarf-2".takeIf { project.kotlinBuildProperties.isNativeRuntimeDebugInfoEnabled },
-                    "-gline-tables-only".takeIf { project.kotlinBuildProperties.isNativeRuntimeDebugInfoEnabled },
                     "-c", "-emit-llvm") + headersDirs.map { "-I$it" }
             val sanitizerFlags = when (sanitizer) {
                 null -> listOf()

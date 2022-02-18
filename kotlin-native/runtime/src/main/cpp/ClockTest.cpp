@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <shared_mutex>
+#include <tuple>
 #include <type_traits>
 
 #include "gmock/gmock.h"
@@ -276,7 +277,7 @@ TEST(ClockInternalTest, WaitUntilViaFor_Void_NonconformantWaitTimeout) {
 
 namespace {
 
-class TypesNames {
+class ClockTestNames {
 public:
     template <typename T>
     static std::string GetName(int) {
@@ -299,22 +300,7 @@ public:
 };
 
 using ClockTestTypes = testing::Types<kotlin::steady_clock, kotlin::test_support::manual_clock>;
-TYPED_TEST_SUITE(ClockTest, ClockTestTypes, TypesNames);
-
-TYPED_TEST(ClockTest, SleepFor_Types) {
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<std::chrono::nanoseconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<std::chrono::microseconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<std::chrono::milliseconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<std::chrono::seconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<std::chrono::minutes>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<std::chrono::hours>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<kotlin::nanoseconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<kotlin::microseconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<kotlin::milliseconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<kotlin::seconds>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<kotlin::minutes>()))>);
-    static_assert(std::is_same_v<void, decltype(TypeParam::sleep_for(std::declval<kotlin::hours>()))>);
-}
+TYPED_TEST_SUITE(ClockTest, ClockTestTypes, ClockTestNames);
 
 TYPED_TEST(ClockTest, SleepFor) {
     constexpr auto interval = milliseconds(1);
@@ -324,101 +310,11 @@ TYPED_TEST(ClockTest, SleepFor) {
     EXPECT_THAT(after - before, testing::Ge(interval));
 }
 
-TYPED_TEST(ClockTest, SleepUntil_Types) {
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, std::chrono::nanoseconds>>()))>);
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, std::chrono::microseconds>>()))>);
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, std::chrono::milliseconds>>()))>);
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, std::chrono::seconds>>()))>);
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, std::chrono::minutes>>()))>);
-    static_assert(
-            std::is_same_v<void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, std::chrono::hours>>()))>);
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, kotlin::nanoseconds>>()))>);
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, kotlin::microseconds>>()))>);
-    static_assert(std::is_same_v<
-                  void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, kotlin::milliseconds>>()))>);
-    static_assert(
-            std::is_same_v<void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, kotlin::seconds>>()))>);
-    static_assert(
-            std::is_same_v<void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, kotlin::minutes>>()))>);
-    static_assert(
-            std::is_same_v<void, decltype(TypeParam::sleep_until(std::declval<std::chrono::time_point<TypeParam, kotlin::hours>>()))>);
-}
-
 TYPED_TEST(ClockTest, SleepUntil) {
     auto until = TypeParam::now() + milliseconds(1);
     TypeParam::sleep_until(until);
     auto after = TypeParam::now();
     EXPECT_THAT(after, testing::Ge(until));
-}
-
-TYPED_TEST(ClockTest, CVWaitFor_Types) {
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::nanoseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::microseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::milliseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::seconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::minutes>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::hours>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<kotlin::nanoseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<kotlin::microseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<kotlin::milliseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<kotlin::seconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<kotlin::minutes>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<kotlin::hours>(), std::declval<std::function<bool()>>()))>);
 }
 
 TYPED_TEST(ClockTest, CVWaitFor_OK) {
@@ -486,77 +382,6 @@ TYPED_TEST(ClockTest, CVWaitFor_InfiniteTimeout) {
     EXPECT_TRUE(result);
 }
 
-TYPED_TEST(ClockTest, CVWaitUntil_Types) {
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::nanoseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::microseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::milliseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::seconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::minutes>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::hours>>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::nanoseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::microseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::milliseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::seconds>>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::minutes>>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::hours>>(), std::declval<std::function<bool()>>()))>);
-}
-
 TYPED_TEST(ClockTest, CVWaitUntil_OK) {
     std::condition_variable cv;
     std::mutex m;
@@ -619,69 +444,6 @@ TYPED_TEST(ClockTest, CVWaitUntil_InfiniteTimeout) {
     go = true;
     auto result = TypeParam::wait_until(cv, guard, TypeParam::time_point::max(), [&] { return ok; });
     EXPECT_TRUE(result);
-}
-
-TYPED_TEST(ClockTest, CVAnyWaitFor_Types) {
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::nanoseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::microseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::milliseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::seconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::minutes>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::hours>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<kotlin::nanoseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<kotlin::microseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<kotlin::milliseconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<kotlin::seconds>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<kotlin::minutes>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_for(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<kotlin::hours>(), std::declval<std::function<bool()>>()))>);
 }
 
 TYPED_TEST(ClockTest, CVAnyWaitFor_OK) {
@@ -749,77 +511,6 @@ TYPED_TEST(ClockTest, CVAnyWaitFor_InfiniteTimeout) {
     EXPECT_TRUE(result);
 }
 
-TYPED_TEST(ClockTest, CVAnyWaitUntil_Types) {
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::nanoseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::microseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::milliseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::seconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::minutes>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::hours>>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::nanoseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::microseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::milliseconds>>(),
-                          std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::seconds>>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::minutes>>(), std::declval<std::function<bool()>>()))>);
-    static_assert(std::is_same_v<
-                  bool,
-                  decltype(TypeParam::wait_until(
-                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::hours>>(), std::declval<std::function<bool()>>()))>);
-}
-
 TYPED_TEST(ClockTest, CVAnyWaitUntil_OK) {
     std::condition_variable_any cv;
     std::shared_mutex m;
@@ -884,45 +575,6 @@ TYPED_TEST(ClockTest, CVAnyWaitUntil_InfiniteTimeout) {
     EXPECT_TRUE(result);
 }
 
-TYPED_TEST(ClockTest, FutureWaitFor_Types) {
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<std::chrono::nanoseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<std::chrono::microseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<std::chrono::milliseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<std::chrono::seconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<std::chrono::minutes>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<std::chrono::hours>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<kotlin::nanoseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<kotlin::microseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<kotlin::milliseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<kotlin::seconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<kotlin::minutes>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::future<int>&>(), std::declval<kotlin::hours>()))>);
-}
-
 TYPED_TEST(ClockTest, FutureWaitFor_OK) {
     constexpr auto interval = hours(10);
     std::promise<int> promise;
@@ -985,66 +637,6 @@ TYPED_TEST(ClockTest, FutureWaitFor_InfiniteTimeout) {
     EXPECT_THAT(result, std::future_status::ready);
 }
 
-TYPED_TEST(ClockTest, FutureWaitUntil_Types) {
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::nanoseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::microseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::milliseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::seconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::minutes>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::hours>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::nanoseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::microseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::milliseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(), std::declval<std::chrono::time_point<TypeParam, kotlin::seconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(), std::declval<std::chrono::time_point<TypeParam, kotlin::minutes>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::future<int>&>(), std::declval<std::chrono::time_point<TypeParam, kotlin::hours>>()))>);
-}
-
 TYPED_TEST(ClockTest, FutureWaitUntil_OK) {
     std::promise<int> promise;
     std::future<int> future = promise.get_future();
@@ -1103,47 +695,6 @@ TYPED_TEST(ClockTest, FutureWaitUntil_InfiniteTimeout) {
     go = true;
     auto result = TypeParam::wait_until(future, TypeParam::time_point::max());
     EXPECT_THAT(result, std::future_status::ready);
-}
-
-TYPED_TEST(ClockTest, SharedFutureWaitFor_Types) {
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::nanoseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(
-                          std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::microseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(
-                          std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::milliseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::seconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::minutes>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<std::chrono::hours>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<kotlin::nanoseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<kotlin::microseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<kotlin::milliseconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<kotlin::seconds>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<kotlin::minutes>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<kotlin::hours>()))>);
 }
 
 TYPED_TEST(ClockTest, SharedFutureWaitFor_OK) {
@@ -1208,69 +759,6 @@ TYPED_TEST(ClockTest, SharedFutureWaitFor_InfiniteTimeout) {
     EXPECT_THAT(result, std::future_status::ready);
 }
 
-TYPED_TEST(ClockTest, SharedFutureWaitUntil_Types) {
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::nanoseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::microseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::milliseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::seconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::minutes>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, std::chrono::hours>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::nanoseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::microseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::milliseconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::seconds>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::minutes>>()))>);
-    static_assert(std::is_same_v<
-                  std::future_status,
-                  decltype(TypeParam::wait_until(
-                          std::declval<const std::shared_future<int>&>(),
-                          std::declval<std::chrono::time_point<TypeParam, kotlin::hours>>()))>);
-}
-
 TYPED_TEST(ClockTest, SharedFutureWaitUntil_OK) {
     std::promise<int> promise;
     std::shared_future<int> future = promise.get_future();
@@ -1329,6 +817,192 @@ TYPED_TEST(ClockTest, SharedFutureWaitUntil_InfiniteTimeout) {
     go = true;
     auto result = TypeParam::wait_until(future, TypeParam::time_point::max());
     EXPECT_THAT(result, std::future_status::ready);
+}
+
+namespace {
+
+class ClockTypesTestNames {
+public:
+    template <typename T>
+    static std::string GetName(int) {
+        std::string result;
+        result += clockName<T>();
+        result += "_";
+        result += durationName<T>();
+        return result;
+    }
+
+private:
+    template <typename T>
+    static const char* clockName() {
+        using Clock = typename std::tuple_element<0, T>::type;
+        if constexpr (std::is_same_v<Clock, kotlin::steady_clock>) {
+            return "steady_clock";
+        } else if constexpr (std::is_same_v<Clock, kotlin::test_support::manual_clock>) {
+            return "manual_clock";
+        } else {
+            return "unknown";
+        }
+    }
+
+    template <typename T>
+    static const char* durationName() {
+        using Duration = typename std::tuple_element<1, T>::type;
+        if constexpr (std::is_same_v<Duration, std::chrono::nanoseconds>) {
+            return "ns";
+        } else if constexpr (std::is_same_v<Duration, std::chrono::microseconds>) {
+            return "us";
+        } else if constexpr (std::is_same_v<Duration, std::chrono::milliseconds>) {
+            return "ms";
+        } else if constexpr (std::is_same_v<Duration, std::chrono::seconds>) {
+            return "s";
+        } else if constexpr (std::is_same_v<Duration, std::chrono::minutes>) {
+            return "m";
+        } else if constexpr (std::is_same_v<Duration, std::chrono::hours>) {
+            return "h";
+        } else if constexpr (std::is_same_v<Duration, kotlin::nanoseconds>) {
+            return "sat_ns";
+        } else if constexpr (std::is_same_v<Duration, kotlin::microseconds>) {
+            return "sat_us";
+        } else if constexpr (std::is_same_v<Duration, kotlin::milliseconds>) {
+            return "sat_ms";
+        } else if constexpr (std::is_same_v<Duration, kotlin::seconds>) {
+            return "sat_s";
+        } else if constexpr (std::is_same_v<Duration, kotlin::minutes>) {
+            return "sat_m";
+        } else if constexpr (std::is_same_v<Duration, kotlin::hours>) {
+            return "sat_h";
+        } else {
+            return "unknown";
+        }
+    }
+};
+
+} // namespace
+
+template <typename T>
+class ClockTypesTest : public testing::Test {
+public:
+    using Clock = typename std::tuple_element<0, T>::type;
+    using Duration = typename std::tuple_element<1, T>::type;
+};
+
+using ClockTypesTestTypes = testing::Types<
+    std::tuple<kotlin::steady_clock, std::chrono::nanoseconds>,
+    std::tuple<kotlin::steady_clock, std::chrono::microseconds>,
+    std::tuple<kotlin::steady_clock, std::chrono::milliseconds>,
+    std::tuple<kotlin::steady_clock, std::chrono::seconds>,
+    std::tuple<kotlin::steady_clock, std::chrono::minutes>,
+    std::tuple<kotlin::steady_clock, std::chrono::hours>,
+    std::tuple<kotlin::steady_clock, kotlin::nanoseconds>,
+    std::tuple<kotlin::steady_clock, kotlin::microseconds>,
+    std::tuple<kotlin::steady_clock, kotlin::milliseconds>,
+    std::tuple<kotlin::steady_clock, kotlin::seconds>,
+    std::tuple<kotlin::steady_clock, kotlin::minutes>,
+    std::tuple<kotlin::steady_clock, kotlin::hours>,
+    std::tuple<kotlin::test_support::manual_clock, std::chrono::nanoseconds>,
+    std::tuple<kotlin::test_support::manual_clock, std::chrono::microseconds>,
+    std::tuple<kotlin::test_support::manual_clock, std::chrono::milliseconds>,
+    std::tuple<kotlin::test_support::manual_clock, std::chrono::seconds>,
+    std::tuple<kotlin::test_support::manual_clock, std::chrono::minutes>,
+    std::tuple<kotlin::test_support::manual_clock, std::chrono::hours>,
+    std::tuple<kotlin::test_support::manual_clock, kotlin::nanoseconds>,
+    std::tuple<kotlin::test_support::manual_clock, kotlin::microseconds>,
+    std::tuple<kotlin::test_support::manual_clock, kotlin::milliseconds>,
+    std::tuple<kotlin::test_support::manual_clock, kotlin::seconds>,
+    std::tuple<kotlin::test_support::manual_clock, kotlin::minutes>,
+    std::tuple<kotlin::test_support::manual_clock, kotlin::hours>>;
+TYPED_TEST_SUITE(ClockTypesTest, ClockTypesTestTypes, ClockTypesTestNames);
+
+TYPED_TEST(ClockTypesTest, SleepFor) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<void, decltype(Clock::sleep_for(std::declval<Duration>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, SleepUntil) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  void, decltype(Clock::sleep_until(std::declval<std::chrono::time_point<Clock, Duration>>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, CVWaitFor) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  bool,
+                  decltype(Clock::wait_for(
+                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
+                          std::declval<Duration>(), std::declval<std::function<bool()>>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, CVWaitUntil) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  bool,
+                  decltype(Clock::wait_until(
+                          std::declval<std::condition_variable&>(), std::declval<std::unique_lock<std::mutex>&>(),
+                          std::declval<std::chrono::time_point<Clock, Duration>>(),
+                          std::declval<std::function<bool()>>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, CVAnyWaitFor) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  bool,
+                  decltype(Clock::wait_for(
+                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
+                          std::declval<Duration>(), std::declval<std::function<bool()>>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, CVAnyWaitUntil) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  bool,
+                  decltype(Clock::wait_until(
+                          std::declval<std::condition_variable_any&>(), std::declval<std::unique_lock<std::shared_mutex>&>(),
+                          std::declval<std::chrono::time_point<Clock, Duration>>(),
+                          std::declval<std::function<bool()>>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, FutureWaitFor) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  std::future_status,
+                  decltype(Clock::wait_for(std::declval<const std::future<int>&>(), std::declval<Duration>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, FutureWaitUntil) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  std::future_status,
+                  decltype(Clock::wait_until(
+                          std::declval<const std::future<int>&>(),
+                          std::declval<std::chrono::time_point<Clock, Duration>>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, SharedFutureWaitFor) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  std::future_status,
+                  decltype(Clock::wait_for(std::declval<const std::shared_future<int>&>(), std::declval<Duration>()))>);
+}
+
+TYPED_TEST(ClockTypesTest, SharedFutureWaitUntil) {
+    using Clock = typename ClockTypesTest<TypeParam>::Clock;
+    using Duration = typename ClockTypesTest<TypeParam>::Duration;
+    static_assert(std::is_same_v<
+                  std::future_status,
+                  decltype(Clock::wait_until(
+                          std::declval<const std::shared_future<int>&>(),
+                          std::declval<std::chrono::time_point<Clock, Duration>>()))>);
 }
 
 TEST(ManualClockTest, SleepUntil) {

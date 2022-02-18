@@ -1299,9 +1299,10 @@ class PatternTest {
 
         val positiveRegex = Regex("\\v")
         val negativeRegex = Regex("\\V")
-        val verticalWhitespaces = listOf("\n", "\u000B", /* \f */ "\u000C", "\r", "\u0085", "\u2028", "\u2029")
+        val verticalWhitespaces = listOf("\n", "\u000B", "\u000C" /* aka \f */, "\r", "\u0085", "\u2028", "\u2029")
         val nonVerticalWhitespaces = listOf("1", "K", " ", "${Char.MIN_HIGH_SURROGATE}${Char.MIN_LOW_SURROGATE}")
 
+        // Smoke tests
         verticalWhitespaces.forEach {
             assertMatch(positiveRegex, it)
             assertNoMatch(negativeRegex, it)
@@ -1309,12 +1310,6 @@ class PatternTest {
             assertFind(positiveRegex, "prefix$it", 6..6)
             assertFind(positiveRegex, "prefix${it}suffix", 6..6)
             assertFind(positiveRegex, "${it}suffix", 0..0)
-
-            assertMatch(Regex("prefix\\v"), "prefix$it")
-            assertMatch(Regex("prefix\\vsuffix"), "prefix${it}suffix")
-            assertMatch(Regex("\\vsuffix"), "${it}suffix")
-
-            assertMatch(Regex("\\v+"), it.repeat(5))
         }
 
         nonVerticalWhitespaces.forEach {
@@ -1324,13 +1319,94 @@ class PatternTest {
             assertFind(negativeRegex, "\n\n$it",  2 until (2 + it.length))
             assertFind(negativeRegex, "\n\n${it}\n\n", 2 until (2 + it.length))
             assertFind(negativeRegex, "${it}\n\n", 0 until it.length)
-
-            assertMatch(Regex("\n\n\\V"), "\n\n$it")
-            assertMatch(Regex("\n\n\\V\n\n"), "\n\n${it}\n\n")
-            assertMatch(Regex("\\V\n\n"), "${it}\n\n")
-
-            assertMatch(Regex("\\V+"), it.repeat(5))
         }
+
+        // Test that \v and \V can be a part of a more complex regex.
+        val neighbors = listOf(
+            // regex expression to its match.
+            "x" to "x",
+            " " to " ",
+            "\\n" to "\n",
+            "\\\\" to "\\",
+            "[abc]" to "a",
+            "." to "x",
+            "\\d" to "5",
+            "\\D" to "x",
+            "\\s" to " ",
+            "\\S" to "x",
+            "\\w" to "x",
+            "\\W" to "|",
+            "\\p{Alnum}" to "x",
+            "\\p{Space}" to " ",
+            "\\p{Blank}" to " ",
+            "\\p{Sc}" to "$"
+        ).flatMap { (expression, match) ->
+            listOf(
+                expression to match,
+                "$expression+" to match.repeat(2),
+                "$expression{2,4}" to match.repeat(3)
+            )
+        }
+
+        neighbors.forEach { (neighbor, match) ->
+            // \v
+            assertMatch(Regex("$neighbor\\v"), "$match\n")
+            assertMatch(Regex("$neighbor\\v$neighbor"), "$match\n$match")
+            assertMatch(Regex("\\v$neighbor"), "\n$match")
+
+            assertMatch(Regex("$neighbor\\v+"), "$match\n\n")
+            assertMatch(Regex("$neighbor\\v+$neighbor"), "$match\n\n$match")
+            assertMatch(Regex("\\v+$neighbor"), "\n\n$match")
+
+            assertMatch(Regex("$neighbor\\v{2,4}"), "$match\n\n\n")
+            assertMatch(Regex("$neighbor\\v{2,4}$neighbor"), "$match\n\n\n$match")
+            assertMatch(Regex("\\v{2,4}$neighbor"), "\n\n\n$match")
+
+            assertMatch(Regex("$neighbor\\v*"), match)
+            assertMatch(Regex("$neighbor\\v*$neighbor"), "$match$match")
+            assertMatch(Regex("\\v*$neighbor"), match)
+
+            // \V
+            assertMatch(Regex("$neighbor\\V"), "$match ")
+            assertMatch(Regex("$neighbor\\V$neighbor"), "$match $match")
+            assertMatch(Regex("\\V$neighbor"), " $match")
+
+            assertMatch(Regex("$neighbor\\V+"), "$match  ")
+            assertMatch(Regex("$neighbor\\V+$neighbor"), "$match  $match")
+            assertMatch(Regex("\\V+$neighbor"), "  $match")
+
+            assertMatch(Regex("$neighbor\\V{2,4}"), "$match    ")
+            assertMatch(Regex("$neighbor\\V{2,4}$neighbor"), "$match   $match")
+            assertMatch(Regex("\\V{2,4}$neighbor"), "   $match")
+
+            assertMatch(Regex("$neighbor\\V*"), match)
+            assertMatch(Regex("$neighbor\\V*$neighbor"), "$match$match")
+            assertMatch(Regex("\\V*$neighbor"), match)
+        }
+
+        // Backrefs and `or` expression
+        assertMatch(Regex("(\\v)x\\1"), "\nx\n")
+        assertMatch(Regex("\\v|x"), "\n")
+        assertMatch(Regex("\\v|x"), "x")
+
+        assertMatch(Regex("(\\V)\n\\1"), "x\nx")
+        assertMatch(Regex("\\V|\n"), "x")
+        assertMatch(Regex("\\V|\n"), "\n")
+
+        // Boundaries: ^, $, \b, \B
+        assertMatch(Regex("^\\vx"), "\nx")
+        assertNoMatch(Regex("^\\vx"), "x\n")
+        assertMatch(Regex("x\\v$"), "x\n")
+        assertNoMatch(Regex("x\\v$"), "\nx")
+        assertMatch(Regex("abc\\b\\v"), "abc\n")
+        assertMatch(Regex("abc\\b\\v"), "abc\n")
+
+        assertMatch(Regex("^\\V\n"), "x\n")
+        assertNoMatch(Regex("^\\V\n"), "\nx")
+        assertMatch(Regex("\n\\V$"), "\nx")
+        assertNoMatch(Regex("\n\\V$"), "x\n")
+        assertMatch(Regex("abc\\B\\V"), "abcd")
+        assertMatch(Regex("abc\\B\\V"), "abcd")
     }
 
     @Test fun testHorizontalWhitespaceChar() {
@@ -1344,6 +1420,7 @@ class PatternTest {
                 ('\u2000'..'\u200a').map(Char::toString)
         val nonVerticalWhitespaces = listOf("1", "K", "\n", "${Char.MIN_HIGH_SURROGATE}${Char.MIN_LOW_SURROGATE}")
 
+        // Smoke tests
         verticalWhitespaces.forEach {
             assertMatch(positiveRegex, it)
             assertNoMatch(negativeRegex, it)
@@ -1351,12 +1428,6 @@ class PatternTest {
             assertFind(positiveRegex, "prefix$it", 6..6)
             assertFind(positiveRegex, "prefix${it}suffix", 6..6)
             assertFind(positiveRegex, "${it}suffix", 0..0)
-
-            assertMatch(Regex("prefix\\h"), "prefix$it")
-            assertMatch(Regex("prefix\\hsuffix"), "prefix${it}suffix")
-            assertMatch(Regex("\\hsuffix"), "${it}suffix")
-
-            assertMatch(Regex("\\h+"), it.repeat(5))
         }
 
         nonVerticalWhitespaces.forEach {
@@ -1366,13 +1437,94 @@ class PatternTest {
             assertFind(negativeRegex, "  $it", 2 until (2 + it.length))
             assertFind(negativeRegex, "  $it  ", 2 until (2 + it.length))
             assertFind(negativeRegex, "$it  ", 0 until it.length)
-
-            assertMatch(Regex("  \\H"), "  $it")
-            assertMatch(Regex("  \\H  "), "  $it  ")
-            assertMatch(Regex("\\H  "), "$it  ")
-
-            assertMatch(Regex("\\H+"), it.repeat(5))
         }
+
+        // Test that \h and \H can be a part of a more complex regex.
+        val neighbors = listOf(
+            // regex expression to its match.
+            "x" to "x",
+            " " to " ",
+            "\\n" to "\n",
+            "\\\\" to "\\",
+            "[abc]" to "a",
+            "." to "x",
+            "\\d" to "5",
+            "\\D" to "x",
+            "\\s" to " ",
+            "\\S" to "x",
+            "\\w" to "x",
+            "\\W" to "|",
+            "\\p{Alnum}" to "x",
+            "\\p{Space}" to " ",
+            "\\p{Blank}" to " ",
+            "\\p{Sc}" to "$"
+        ).flatMap { (expression, match) ->
+            listOf(
+                expression to match,
+                "$expression+" to match.repeat(2),
+                "$expression{2,4}" to match.repeat(3)
+            )
+        }
+
+        neighbors.forEach { (neighbor, match) ->
+            // \h
+            assertMatch(Regex("$neighbor\\h"), "$match ")
+            assertMatch(Regex("$neighbor\\h$neighbor"), "$match $match")
+            assertMatch(Regex("\\h$neighbor"), " $match")
+
+            assertMatch(Regex("$neighbor\\h+"), "$match  ")
+            assertMatch(Regex("$neighbor\\h+$neighbor"), "$match  $match")
+            assertMatch(Regex("\\h+$neighbor"), "  $match")
+
+            assertMatch(Regex("$neighbor\\h{2,4}"), "$match   ")
+            assertMatch(Regex("$neighbor\\h{2,4}$neighbor"), "$match   $match")
+            assertMatch(Regex("\\h{2,4}$neighbor"), "   $match")
+
+            assertMatch(Regex("$neighbor\\h*"), match)
+            assertMatch(Regex("$neighbor\\h*$neighbor"), "$match$match")
+            assertMatch(Regex("\\h*$neighbor"), match)
+
+            // \H
+            assertMatch(Regex("$neighbor\\H"), "$match\n")
+            assertMatch(Regex("$neighbor\\H$neighbor"), "$match\n$match")
+            assertMatch(Regex("\\H$neighbor"), "\n$match")
+
+            assertMatch(Regex("$neighbor\\H+"), "$match\n\n")
+            assertMatch(Regex("$neighbor\\H+$neighbor"), "$match\n\n$match")
+            assertMatch(Regex("\\H+$neighbor"), "\n\n$match")
+
+            assertMatch(Regex("$neighbor\\H{2,4}"), "$match\n\n\n")
+            assertMatch(Regex("$neighbor\\H{2,4}$neighbor"), "$match\n\n\n$match")
+            assertMatch(Regex("\\H{2,4}$neighbor"), "\n\n\n$match")
+
+            assertMatch(Regex("$neighbor\\H*"), match)
+            assertMatch(Regex("$neighbor\\H*$neighbor"), "$match$match")
+            assertMatch(Regex("\\H*$neighbor"), match)
+        }
+
+        // Backrefs and `or` expression
+        assertMatch(Regex("(\\h)x\\1"), " x ")
+        assertMatch(Regex("\\h|x"), " ")
+        assertMatch(Regex("\\h|x"), "x")
+
+        assertMatch(Regex("(\\H) \\1"), "x x")
+        assertMatch(Regex("\\H| "), "x")
+        assertMatch(Regex("\\H| "), " ")
+
+        // Boundaries: ^, $, \b, \B
+        assertMatch(Regex("^\\hx"), " x")
+        assertNoMatch(Regex("^\\hx"), "x ")
+        assertMatch(Regex("x\\h$"), "x ")
+        assertNoMatch(Regex("x\\h$"), " x")
+        assertMatch(Regex("abc\\b\\h"), "abc ")
+        assertMatch(Regex("abc\\b\\h"), "abc ")
+
+        assertMatch(Regex("^\\H "), "x ")
+        assertNoMatch(Regex("^\\H "), " x")
+        assertMatch(Regex(" \\H$"), " x")
+        assertNoMatch(Regex(" \\H$"), "x ")
+        assertMatch(Regex("abc\\B\\H"), "abcd")
+        assertMatch(Regex("abc\\B\\H"), "abcd")
     }
 
     @Test fun testUnicodeLinebreakChar() {
@@ -1383,25 +1535,79 @@ class PatternTest {
         val linebreaks = listOf("\u000D\u000A", "\u000A", "\u000B", "\u000C", "\u000D", "\u0085", "\u2028", "\u2029")
         val nonLinebreaks = listOf("1", "K", " ", "${Char.MIN_HIGH_SURROGATE}${Char.MIN_LOW_SURROGATE}")
 
+        // Smoke tests
         linebreaks.forEach {
             assertMatch(regex, it)
 
             assertFind(regex, "prefix$it", 6 until (6 + it.length))
             assertFind(regex, "prefix${it}suffix", 6 until (6 + it.length))
             assertFind(regex, "${it}suffix", 0 until it.length)
-
-            assertMatch(Regex("prefix\\R"), "prefix$it")
-            assertMatch(Regex("prefix\\Rsuffix"), "prefix${it}suffix")
-            assertMatch(Regex("\\Rsuffix"), "${it}suffix")
-
-            assertMatch(Regex("\\R+"), it.repeat(5))
         }
 
         nonLinebreaks.forEach {
             assertNoMatch(regex, it)
         }
 
+        // Test that \r\n matches both \R and \R\R
         assertMatch(Regex("\\R\\R\\R"), "\r\r\n\n")
         assertMatch(Regex("\\R\\R\\R\\R"), "\r\r\n\n")
+
+        // Test that \R can be a part of a more complex regex.
+        val neighbors = listOf(
+            // regex expression to its match.
+            "x" to "x",
+            " " to " ",
+            "\\n" to "\n",
+            "\\\\" to "\\",
+            "[abc]" to "a",
+            "." to "x",
+            "\\d" to "5",
+            "\\D" to "x",
+            "\\s" to " ",
+            "\\S" to "x",
+            "\\w" to "x",
+            "\\W" to "|",
+            "\\p{Alnum}" to "x",
+            "\\p{Space}" to " ",
+            "\\p{Blank}" to " ",
+            "\\p{Sc}" to "$"
+        ).flatMap { (expression, match) ->
+            listOf(
+                expression to match,
+                "$expression+" to match.repeat(2),
+                "$expression{2,4}" to match.repeat(3)
+            )
+        }
+
+        neighbors.forEach { (neighbor, match) ->
+            assertMatch(Regex("$neighbor\\R"), "$match\n")
+            assertMatch(Regex("$neighbor\\R$neighbor"), "$match\n$match")
+            assertMatch(Regex("\\R$neighbor"), "\n$match")
+
+            assertMatch(Regex("$neighbor\\R+"), "$match\n\n")
+            assertMatch(Regex("$neighbor\\R+$neighbor"), "$match\n\n$match")
+            assertMatch(Regex("\\R+$neighbor"), "\n\n$match")
+
+            assertMatch(Regex("$neighbor\\R{2,4}"), "$match\n\n\n")
+            assertMatch(Regex("$neighbor\\R{2,4}$neighbor"), "$match\n\n\n$match")
+            assertMatch(Regex("\\R{2,4}$neighbor"), "\n\n\n$match")
+
+            assertMatch(Regex("$neighbor\\R*"), match)
+            assertMatch(Regex("$neighbor\\R*$neighbor"), "$match$match")
+            assertMatch(Regex("\\R*$neighbor"), match)
+        }
+
+        // Backrefs and `or` expression
+        assertMatch(Regex("(\\R)x\\1"), "\nx\n")
+        assertMatch(Regex("\\R|x"), "\n")
+        assertMatch(Regex("\\R|x"), "x")
+
+        // Boundaries: ^, $, \b, \B
+        assertMatch(Regex("^\\Rx"), "\nx")
+        assertNoMatch(Regex("^\\Rx"), "x\n")
+        assertMatch(Regex("x\\R$"), "x\n")
+        assertNoMatch(Regex("x\\R$"), "\nx")
+        assertMatch(Regex("abc\\b\\R"), "abc\n")
+        assertMatch(Regex("abc\\b\\R"), "abc\n")
     }
 }

@@ -306,7 +306,7 @@ internal abstract class AbstractCharClass : SpecialToken() {
             initValues()
         }
         override fun computeValue(): AbstractCharClass =
-            CharClass().addAll(listOf('\n', '\u000B', /* \f */ '\u000C', '\r', '\u0085', '\u2028', '\u2029'))
+            CharClass().addAll(listOf('\n', '\u000B', '\u000C' /* aka \f */, '\r', '\u0085', '\u2028', '\u2029'))
     }
 
     // From Java 8+ `Pattern` doc: \V - A non-vertical whitespace character: [^\v]

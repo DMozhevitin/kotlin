@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.commonizer.core
 
+import org.jetbrains.kotlin.commonizer.CommonizerTarget
 import org.jetbrains.kotlin.commonizer.cir.*
 import org.jetbrains.kotlin.commonizer.mergedtree.CirKnownClassifiers
 import org.jetbrains.kotlin.commonizer.mergedtree.PlatformIntWidth
@@ -14,139 +15,203 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.utils.SmartList
 
 class PlatformIntegerCommonizer(
-    private val typeArgumentListCommonizer: TypeArgumentListCommonizer,
-    private val classifiers: CirKnownClassifiers,
+    typeArgumentListCommonizer: TypeArgumentListCommonizer,
+    classifiers: CirKnownClassifiers,
 ) : NullableSingleInvocationCommonizer<CirClassOrTypeAliasType> {
     constructor(typeCommonizer: TypeCommonizer, classifiers: CirKnownClassifiers)
             : this(TypeArgumentListCommonizer(typeCommonizer), classifiers)
 
     override fun invoke(values: List<CirClassOrTypeAliasType>): CirClassOrTypeAliasType? {
-        val typesToCommonizeWithTargets = values.zip(classifiers.classifierIndices.targets)
-
-        for ((platformTypeGroup, commonizer) in platformTypeGroupsToCommonizers) {
-            // all types should belong to the same category
-            if (values.any { it.classifierId !in platformTypeGroup })
-                continue
-
-            // bit width of types should match their platform width
-            if (typesToCommonizeWithTargets.any { (type, target) ->
-                    platformTypeGroup[type.classifierId] != PlatformWidthIndex.platformWidthOf(target)
-                }) continue
-
-            return commonizer(values)
+        return platformDependentTypeCommonizers.firstNotNullOfOrNull { commonizer ->
+            commonizer.invoke(values)
         }
-
-        return null
     }
 
-    private val platformTypeGroupsToCommonizers: List<Pair<PlatformTypeGroup, PlatformTypeCommonizer>> = listOf(
-        commonizableSignedIntegerIds to { platformIntType },
-        commonizableUnsignedIntegerIds to { platformUIntType },
-        commonizableSignedArrayIds to { platformIntArrayType },
-        commonizableUnsignedArrayIds to { platformUIntArrayType },
-        commonizableSignedRangeIds to { platformIntRangeType },
-        commonizableUnsignedRangeIds to { platformUIntRangeType },
-        commonizableSignedProgressionIds to { platformIntProgressionType },
-        commonizableUnsignedProgressionIds to { platformUIntProgressionType },
-        commonizableSignedVarIds to { types -> commonizeVarOf(types, isSigned = true) },
-        commonizableUnsignedVarIds to { types -> commonizeVarOf(types, isSigned = false) },
+    private val platformDependentTypeCommonizers = listOf(
+        PlatformIntCommonizer(classifiers),
+        PlatformUIntCommonizer(classifiers),
+        PlatformIntArrayCommonizer(classifiers),
+        PlatformUIntArrayCommonizer(classifiers),
+        PlatformIntRangeCommonizer(classifiers),
+        PlatformUIntRangeCommonizer(classifiers),
+        PlatformIntProgressionCommonizer(classifiers),
+        PlatformUIntProgressionCommonizer(classifiers),
+        PlatformIntVarOfCommonizer(classifiers, typeArgumentListCommonizer),
+        PlatformUIntVarOfCommonizer(classifiers, typeArgumentListCommonizer),
     )
+}
 
-    private fun commonizeVarOf(
-        types: List<CirClassOrTypeAliasType>,
-        isSigned: Boolean
-    ): CirClassOrTypeAliasType? {
-        val commonTypeArgument = typeArgumentListCommonizer.commonize(types.map { it.arguments })?.singleOrNull()
+private sealed class PlatformDependentTypeCommonizer(
+    private val classifiers: CirKnownClassifiers,
+    private val intPlatformId: CirEntityId,
+    private val longPlatformId: CirEntityId,
+    private val mixedPlatformId: CirEntityId,
+) : NullableSingleInvocationCommonizer<CirClassOrTypeAliasType> {
+
+    protected abstract fun doCommonize(values: List<CirClassOrTypeAliasType>): CirClassOrTypeAliasType?
+
+    override fun invoke(values: List<CirClassOrTypeAliasType>): CirClassOrTypeAliasType? {
+        val typesToCommonizeWithTargets = values.zip(classifiers.classifierIndices.targets)
+        if (typesToCommonizeWithTargets.any { (type, target) -> !inputTypeIsKnownAndMatchesPlatformBitWidth(type, target) }) return null
+
+        return doCommonize(values)
+    }
+
+    private fun inputTypeIsKnownAndMatchesPlatformBitWidth(type: CirClassOrTypeAliasType, target: CommonizerTarget): Boolean =
+        when (PlatformWidthIndex.platformWidthOf(target)) {
+            PlatformIntWidth.INT -> type.classifierId == intPlatformId
+            PlatformIntWidth.LONG -> type.classifierId == longPlatformId
+            PlatformIntWidth.MIXED -> type.classifierId == mixedPlatformId
+            null -> false
+        }
+}
+
+private abstract class PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers: CirKnownClassifiers,
+    intPlatformId: CirEntityId,
+    longPlatformId: CirEntityId,
+    mixedPlatformId: CirEntityId,
+    private val resultingType: CirClassType,
+) : PlatformDependentTypeCommonizer(classifiers, intPlatformId, longPlatformId, mixedPlatformId) {
+
+    override fun doCommonize(values: List<CirClassOrTypeAliasType>): CirClassOrTypeAliasType? =
+        resultingType
+}
+
+private abstract class PlatformDependentTypeWithSingleArgumentCommonizer(
+    classifiers: CirKnownClassifiers,
+    private val typeArgumentListCommonizer: TypeArgumentListCommonizer,
+    intPlatformId: CirEntityId,
+    longPlatformId: CirEntityId,
+    private val mixedPlatformId: CirEntityId,
+) : PlatformDependentTypeCommonizer(classifiers, intPlatformId, longPlatformId, mixedPlatformId) {
+
+    override fun doCommonize(values: List<CirClassOrTypeAliasType>): CirClassOrTypeAliasType? {
+        val commonTypeArgument = typeArgumentListCommonizer.commonize(values.map { it.arguments })?.singleOrNull()
             ?: return null
 
-        return createCommonVarOfType(isSigned = isSigned, argument = commonTypeArgument)
+        return createCirTypeWithOneArgument(entityId = mixedPlatformId, argument = commonTypeArgument)
     }
 }
 
-private typealias PlatformTypeCommonizer = (List<CirClassOrTypeAliasType>) -> CirClassOrTypeAliasType?
-private typealias PlatformTypeGroup = Map<CirEntityId, PlatformIntWidth>
-
-// commonizable groups
-private val commonizableSignedIntegerIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    KOTLIN_INT_ID.toCirEntityId() to PlatformIntWidth.INT,
-    KOTLIN_LONG_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_INT_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformIntCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers,
+    intPlatformId = KOTLIN_INT_ID.toCirEntityId(),
+    longPlatformId = KOTLIN_LONG_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_INT_ID.toCirEntityId(),
+    resultingType = platformIntType,
 )
 
-private val commonizableUnsignedIntegerIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    KOTLIN_UINT_ID.toCirEntityId() to PlatformIntWidth.INT,
-    KOTLIN_ULONG_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_UINT_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformUIntCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers,
+    intPlatformId = KOTLIN_UINT_ID.toCirEntityId(),
+    longPlatformId = KOTLIN_ULONG_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_UINT_ID.toCirEntityId(),
+    resultingType = platformUIntType,
 )
 
-private val commonizableSignedVarIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    INT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.INT,
-    LONG_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_INT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformIntArrayCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers = classifiers,
+    intPlatformId = INT_ARRAY_ID.toCirEntityId(),
+    longPlatformId = LONG_ARRAY_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_INT_ARRAY_ID.toCirEntityId(),
+    resultingType = platformIntArrayType,
 )
 
-private val commonizableUnsignedVarIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    UINT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.INT,
-    ULONG_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_UINT_VAR_OF_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformUIntArrayCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers,
+    intPlatformId = UINT_ARRAY_ID.toCirEntityId(),
+    longPlatformId = ULONG_ARRAY_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_UINT_ARRAY_ID.toCirEntityId(),
+    resultingType = platformUIntArrayType,
 )
 
-private val commonizableSignedArrayIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    INT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.INT,
-    LONG_ARRAY_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_INT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformIntRangeCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers,
+    intPlatformId = INT_RANGE_ID.toCirEntityId(),
+    longPlatformId = LONG_RANGE_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_INT_RANGE_ID.toCirEntityId(),
+    resultingType = platformIntRangeType,
 )
 
-private val commonizableUnsignedArrayIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    UINT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.INT,
-    ULONG_ARRAY_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_UINT_ARRAY_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformUIntRangeCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers,
+    intPlatformId = UINT_RANGE_ID.toCirEntityId(),
+    longPlatformId = ULONG_RANGE_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_UINT_RANGE_ID.toCirEntityId(),
+    resultingType = platformUIntRangeType,
 )
 
-private val commonizableSignedRangeIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    INT_RANGE_ID.toCirEntityId() to PlatformIntWidth.INT,
-    LONG_RANGE_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_INT_RANGE_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformIntProgressionCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers,
+    intPlatformId = INT_PROGRESSION_ID.toCirEntityId(),
+    longPlatformId = LONG_PROGRESSION_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_INT_PROGRESSION_ID.toCirEntityId(),
+    resultingType = platformIntProgressionType,
 )
 
-private val commonizableUnsignedRangeIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    UINT_RANGE_ID.toCirEntityId() to PlatformIntWidth.INT,
-    ULONG_RANGE_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_UINT_RANGE_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformUIntProgressionCommonizer(
+    classifiers: CirKnownClassifiers,
+) : PlatformDependentTypeWithoutTypeArgumentCommonizer(
+    classifiers,
+    intPlatformId = UINT_PROGRESSION_ID.toCirEntityId(),
+    longPlatformId = ULONG_PROGRESSION_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_UINT_PROGRESSION_ID.toCirEntityId(),
+    resultingType = platformUIntProgressionType,
 )
 
-private val commonizableSignedProgressionIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    INT_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.INT,
-    LONG_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_INT_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformIntVarOfCommonizer(
+    classifiers: CirKnownClassifiers,
+    typeArgumentListCommonizer: TypeArgumentListCommonizer,
+) : PlatformDependentTypeWithSingleArgumentCommonizer(
+    classifiers,
+    typeArgumentListCommonizer,
+    intPlatformId = INT_VAR_OF_ID.toCirEntityId(),
+    longPlatformId = LONG_VAR_OF_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_INT_VAR_OF_ID.toCirEntityId(),
 )
 
-private val commonizableUnsignedProgressionIds: Map<CirEntityId, PlatformIntWidth> = mapOf(
-    UINT_PROGRESSION.toCirEntityId() to PlatformIntWidth.INT,
-    ULONG_PROGRESSION.toCirEntityId() to PlatformIntWidth.LONG,
-    PLATFORM_UINT_PROGRESSION_ID.toCirEntityId() to PlatformIntWidth.MIXED,
+private class PlatformUIntVarOfCommonizer(
+    classifiers: CirKnownClassifiers,
+    typeArgumentListCommonizer: TypeArgumentListCommonizer,
+) : PlatformDependentTypeWithSingleArgumentCommonizer(
+    classifiers,
+    typeArgumentListCommonizer,
+    intPlatformId = UINT_VAR_OF_ID.toCirEntityId(),
+    longPlatformId = ULONG_VAR_OF_ID.toCirEntityId(),
+    mixedPlatformId = PLATFORM_UINT_VAR_OF_ID.toCirEntityId(),
 )
 
 private fun ClassId.toCirEntityId(): CirEntityId =
     CirEntityId.create(this)
 
-// plain integers
-private val platformIntType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_INT_ID.toCirEntityId())
-private val platformUIntType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_UINT_ID.toCirEntityId())
+private val platformIntType: CirClassType = createCirTypeWithoutArguments(PLATFORM_INT_ID.toCirEntityId())
+private val platformUIntType: CirClassType = createCirTypeWithoutArguments(PLATFORM_UINT_ID.toCirEntityId())
 
-// arrays
-private val platformIntArrayType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_INT_ARRAY_ID.toCirEntityId())
-private val platformUIntArrayType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_UINT_ARRAY_ID.toCirEntityId())
+private val platformIntArrayType: CirClassType = createCirTypeWithoutArguments(PLATFORM_INT_ARRAY_ID.toCirEntityId())
+private val platformUIntArrayType: CirClassType = createCirTypeWithoutArguments(PLATFORM_UINT_ARRAY_ID.toCirEntityId())
 
-// ranges
-private val platformIntRangeType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_INT_RANGE_ID.toCirEntityId())
-private val platformUIntRangeType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_UINT_RANGE_ID.toCirEntityId())
+private val platformIntRangeType: CirClassType = createCirTypeWithoutArguments(PLATFORM_INT_RANGE_ID.toCirEntityId())
+private val platformUIntRangeType: CirClassType = createCirTypeWithoutArguments(PLATFORM_UINT_RANGE_ID.toCirEntityId())
 
-// progressions
-private val platformIntProgressionType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_INT_PROGRESSION_ID.toCirEntityId())
-private val platformUIntProgressionType: CirClassType = createSimpleCirTypeWithoutArguments(PLATFORM_UINT_PROGRESSION_ID.toCirEntityId())
+private val platformIntProgressionType: CirClassType = createCirTypeWithoutArguments(PLATFORM_INT_PROGRESSION_ID.toCirEntityId())
+private val platformUIntProgressionType: CirClassType = createCirTypeWithoutArguments(PLATFORM_UINT_PROGRESSION_ID.toCirEntityId())
 
-private fun createSimpleCirTypeWithoutArguments(id: CirEntityId): CirClassType =
+private fun createCirTypeWithoutArguments(id: CirEntityId): CirClassType =
     CirClassType.createInterned(
         classId = id,
         outerType = null,
@@ -154,9 +219,9 @@ private fun createSimpleCirTypeWithoutArguments(id: CirEntityId): CirClassType =
         isMarkedNullable = false,
     )
 
-private fun createCommonVarOfType(isSigned: Boolean, argument: CirTypeProjection): CirClassType {
+private fun createCirTypeWithOneArgument(entityId: CirEntityId, argument: CirTypeProjection): CirClassType {
     return CirClassType.createInterned(
-        classId = if (isSigned) PLATFORM_INT_VAR_OF_ID.toCirEntityId() else PLATFORM_UINT_VAR_OF_ID.toCirEntityId(),
+        classId = entityId,
         outerType = null,
         arguments = SmartList(argument),
         isMarkedNullable = false,

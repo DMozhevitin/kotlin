@@ -15,6 +15,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "ClockTestSupport.hpp"
 #include "ScopedThread.hpp"
 #include "TestSupport.hpp"
 

@@ -3,7 +3,7 @@
  * that can be found in the LICENSE file.
  */
 
-#include "Clock.hpp"
+#include "ClockTestSupport.hpp"
 
 using namespace kotlin;
 

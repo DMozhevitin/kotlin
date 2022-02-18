@@ -23,6 +23,7 @@ import org.jetbrains.kotlin.gradle.targets.js.testing.mocha.KotlinMocha
 import org.jetbrains.kotlin.gradle.tasks.KotlinTest
 import org.jetbrains.kotlin.gradle.utils.getValue
 import org.jetbrains.kotlin.gradle.utils.newFileProperty
+import java.io.File
 import javax.inject.Inject
 
 open class KotlinJsTest
@@ -45,7 +46,8 @@ constructor(
 
     private val projectPath = project.path
 
-    private val forkOptions = mutableListOf<ProcessForkOptions.() -> Unit>()
+    @Nested
+    var environment = mutableMapOf<String, String>()
 
     @get:Internal
     var testFramework: KotlinJsTestFramework? = null
@@ -143,14 +145,8 @@ constructor(
         }
     }
 
-    fun forkOptions(body: ProcessForkOptions.() -> Unit) {
-        forkOptions.add(body)
-    }
-
-    fun forkOptions(fn: Closure<*>) {
-        forkOptions {
-            ConfigureUtil.configure(fn, this)
-        }
+    fun environment(key: String, value: String) {
+        this.environment[key] = value
     }
 
     private inline fun <T : KotlinJsTestFramework> use(runner: T, body: T.() -> Unit): T {
@@ -174,8 +170,8 @@ constructor(
         forkOptions.workingDir = npmProjectDir
         forkOptions.executable = nodeExecutable
 
-        this.forkOptions.forEach {
-            forkOptions.it()
+        environment.forEach { (key, value) ->
+            forkOptions.environment(key, value)
         }
 
         val nodeJsArgs = mutableListOf<String>()

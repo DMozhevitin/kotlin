@@ -18,10 +18,8 @@ kotlin {
         binaries.executable()
         nodejs {
             testTask {
-                forkOptions {
-                    environment("hello", "hello")
-                    environment("NODE_PATH", projectDir.absolutePath)
-                }
+                environment("hello", "hello")
+                environment("NODE_PATH", projectDir.absolutePath)
             }
         }
     }

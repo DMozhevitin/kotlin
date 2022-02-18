@@ -10,6 +10,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include "ClockTestSupport.hpp"
+
 using namespace kotlin;
 
 using Clock = test_support::manual_clock;

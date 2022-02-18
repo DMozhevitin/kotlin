@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.fir.analysis.checkers.expression
 
-import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -20,66 +19,63 @@ import org.jetbrains.kotlin.fir.expressions.*
 
 object FirUnsupportedArrayLiteralChecker : FirArrayOfCallChecker() {
     override fun check(expression: FirArrayOfCall, context: CheckerContext, reporter: DiagnosticReporter) {
-        when (getContainerKind(expression, context)) {
-            ContainerKind.AnnotationOrAnnotationClass -> {}
-            ContainerKind.CompanionOfAnnotation -> {
-                val isError = context.languageVersionSettings.supportsFeature(LanguageFeature.ProhibitArrayLiteralsInCompanionOfAnnotation)
-                reportUnsupportedLiteral(expression, isError, context, reporter)
-            }
-            ContainerKind.Other -> reportUnsupportedLiteral(expression, true, context, reporter)
+        if (!isInsideAnnotationCall(expression, context) &&
+            (context.qualifiedAccessOrAnnotationCalls.isNotEmpty() || !isInsideAnnotationClass(context))
+        ) {
+            reporter.reportOn(
+                expression.source,
+                FirErrors.UNSUPPORTED,
+                "Collection literals outside of annotations",
+                context
+            )
         }
     }
 
-    private fun getContainerKind(expression: FirArrayOfCall, context: CheckerContext): ContainerKind {
+    private fun isInsideAnnotationCall(expression: FirArrayOfCall, context: CheckerContext): Boolean {
         context.qualifiedAccessOrAnnotationCalls.lastOrNull()?.let {
             val arguments = if (it is FirFunctionCall) {
-                if (it.typeRef.toRegularClassSymbol(context.session)?.classKind == ClassKind.ANNOTATION_CLASS ||
-                    it.origin == FirFunctionCallOrigin.Operator && it.calleeReference.name.asString() == "plus"
-                ) {
+                if (it.typeRef.toRegularClassSymbol(context.session)?.classKind == ClassKind.ANNOTATION_CLASS) {
                     it.arguments
                 } else {
-                    null
+                    return false
                 }
             } else if (it is FirAnnotationCall) {
                 it.arguments
             } else {
-                null
+                return false
             }
 
-            return if (arguments?.any { argument ->
-                    val unwrapped =
-                        (if (argument is FirVarargArgumentsExpression) {
-                            argument.arguments[0]
-                        } else {
-                            argument
-                        }).unwrapArgument()
-                    if (unwrapped == expression) {
-                        true
+            return arguments.any { argument ->
+                val unwrapped =
+                    (if (argument is FirVarargArgumentsExpression) {
+                        argument.arguments[0]
                     } else {
-                        if (unwrapped is FirArrayOfCall) {
-                            unwrapped.arguments.firstOrNull()?.unwrapArgument() == expression
-                        } else {
-                            false
-                        }
+                        argument
+                    }).unwrapArgument()
+                if (unwrapped == expression) {
+                    true
+                } else {
+                    if (unwrapped is FirArrayOfCall) {
+                        unwrapped.arguments.firstOrNull()?.unwrapArgument() == expression
+                    } else {
+                        false
                     }
-                } == true
-            ) {
-                ContainerKind.AnnotationOrAnnotationClass
-            } else {
-                ContainerKind.Other
+                }
             }
         }
 
-        var isCompanion = false
+        return false
+    }
+
+    private fun isInsideAnnotationClass(context: CheckerContext): Boolean {
         for (declaration in context.containingDeclarations.asReversed()) {
             if (declaration is FirRegularClass) {
                 if (declaration.isCompanion) {
-                    isCompanion = true
                     continue
                 }
 
                 if (declaration.classKind == ClassKind.ANNOTATION_CLASS) {
-                    return if (isCompanion) ContainerKind.CompanionOfAnnotation else ContainerKind.AnnotationOrAnnotationClass
+                    return true
                 }
             } else if (declaration is FirValueParameter || declaration is FirPrimaryConstructor) {
                 continue
@@ -88,26 +84,6 @@ object FirUnsupportedArrayLiteralChecker : FirArrayOfCallChecker() {
             break
         }
 
-        return ContainerKind.Other
-    }
-
-    private fun reportUnsupportedLiteral(
-        expression: FirArrayOfCall,
-        isError: Boolean,
-        context: CheckerContext,
-        reporter: DiagnosticReporter
-    ) {
-        reporter.reportOn(
-            expression.source,
-            if (isError) FirErrors.UNSUPPORTED else FirErrors.UNSUPPORTED_WARNING,
-            "Collection literals outside of annotations",
-            context
-        )
-    }
-
-    private enum class ContainerKind {
-        AnnotationOrAnnotationClass,
-        CompanionOfAnnotation,
-        Other
+        return false
     }
 }

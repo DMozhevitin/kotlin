@@ -43,9 +43,6 @@ object DIAGNOSTICS_LIST : DiagnosticList("FirErrors") {
         val UNSUPPORTED by error<PsiElement> {
             parameter<String>("unsupported")
         }
-        val UNSUPPORTED_WARNING by warning<PsiElement> {
-            parameter<String>("unsupported")
-        }
         val UNSUPPORTED_FEATURE by error<PsiElement> {
             parameter<Pair<LanguageFeature, LanguageVersionSettings>>("unsupportedFeature")
         }
